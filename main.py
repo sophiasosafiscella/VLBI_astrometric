@@ -35,27 +35,21 @@ timing_model, toas = get_model_and_toas(parfile, timfile)
 #timing_model = get_model(f"./NG_15yr_dataset/par/{PSR_name}_PINT_20220305.nb.par")
 
 # Calculate residuals
-#residuals = Residuals(toas, timing_model).time_resids.to(u.us).value  # Don't forget to use actual timing residuals!
-#xt = toas.get_mjds()
-#errors = toas.get_errors().to(u.us).value
+residuals = Residuals(toas, timing_model).time_resids.to(u.us).value  # Don't forget to use actual timing residuals!
+xt = toas.get_mjds()
+errors = toas.get_errors().to(u.us).value
 
 # Plot the original timing residuals
-#plt.figure()
-#plt.errorbar(xt, residuals, yerr=errors, fmt ='o')
-#plt.title(str(timing_model.PSR.value) + " Original Timing Residuals | $\sigma_\mathrm{TOA}$ = " + str(round(np.std(residuals), 2)))
-#plt.xlabel("MJD")
-#plt.ylabel("Residual ($\mu s$)")
-#plt.grid()
-#plt.show()
+plt.figure()
+plt.errorbar(xt, residuals, yerr=errors, fmt ='o')
+plt.title(str(timing_model.PSR.value) + " Original Timing Residuals | $\sigma_\mathrm{TOA}$ = " + str(round(np.std(residuals), 2)))
+plt.xlabel("MJD")
+plt.ylabel("Residual ($\mu s$)")
+plt.grid()
+plt.show()
 
 # Now we're going to convert from ecliptical to celestial equatorial coordinates
 equatorial_timing_model = timing_model.as_ICRS(epoch=timing_model.POSEPOCH.value)
-
-# Create a SkyCoord object that contains the VLBI astrometric coordinates of the pulsar
-c = SkyCoord(ra=astrometric_values.loc[PSR_name, 'RAJ'],
-             dec=astrometric_values.loc[PSR_name, 'DECJ'],
-             pm_ra_cosdec=astrometric_values.loc[PSR_name, 'PMRA'] * u.mas/u.yr,
-             pm_dec=astrometric_values.loc[PSR_name, 'PMDEC'] * u.mas/u.yr)
 
 # We build a dictionary with a key for each parameter we want to set.
 # The dictionary entries can be either
@@ -63,44 +57,42 @@ c = SkyCoord(ra=astrometric_values.loc[PSR_name, 'RAJ'],
 # or
 # {'pulsar name': (parameter value, )} for parameters that can't be fit
 params = {
-    "RAJ": (astrometric_values.loc[PSR_name, 'RAJ'], 0,  0.0 * pint.hourangle_second),
-    "DECJ": (astrometric_values.loc[PSR_name, 'DECJ'], 0, 0.0 * u.arcsec),
-    "PMRA": (astrometric_values.loc[PSR_name, 'PMRA'] * u.mas/u.yr, 0, 0.0 * u.mas/u.yr),
-    "PMDEC": (astrometric_values.loc[PSR_name, 'PMDEC'] * u.mas/u.yr, 0, 0.0 * u.mas/u.yr),
-    "PX": (astrometric_values.loc[PSR_name, 'PX'] * u.mas, 0, 0.0 * u.mas),
+    "RAJ": (astrometric_values.loc[PSR_name, 'RAJ'], 1,  0.0 * pint.hourangle_second),
+    "DECJ": (astrometric_values.loc[PSR_name, 'DECJ'], 1, 0.0 * u.arcsec),
+    "PMRA": (astrometric_values.loc[PSR_name, 'PMRA'] * u.mas/u.yr, 1, 0.0 * u.mas/u.yr),
+    "PMDEC": (astrometric_values.loc[PSR_name, 'PMDEC'] * u.mas/u.yr, 1, 0.0 * u.mas/u.yr),
+    "PX": (astrometric_values.loc[PSR_name, 'PX'] * u.mas, 1, 0.0 * u.mas),
 }
 
 # Assign the parameters
+print("Changing the astrometric parameters by the VLBI")
 for name, info in params.items():
-    par = getattr(timing_model, name)  # Get parameter object from name
+    par = getattr(equatorial_timing_model, name)  # Get parameter object from name
     par.quantity = info[0]  # set parameter value
     if len(info) > 1:
         if info[1] == 1:
-            par.frozen = False  # Frozen means not fit.
+            par.frozen = True  # Frozen means not fit.
         par.uncertainty = info[2]
 
+# Set up and validate the model
+equatorial_timing_model.setup()
+equatorial_timing_model.validate()
 
-# Modify the astrometric coordinates and propoer motions
-equatorial_timing_model.components['AstrometryEquatorial'].RAJ.quantity = c.ra
-equatorial_timing_model.components['AstrometryEquatorial'].DECJ.quantity = c.dec
-equatorial_timing_model.components['AstrometryEquatorial'].PMRA.quantity = c.pm_ra_cosdec
-equatorial_timing_model.components['AstrometryEquatorial'].PMDEC.quantity = c.pm_dec
-equatorial_timing_model.components['AstrometryEquatorial'].PX.quantity = astrometric_values.loc[PSR_name, 'PX'] * u.mas
+# Fit the other timing parameters using the new astrometric values
+# Let's tell PINT to perform the fit using the Generalized Least Squares (GLS) fitter.
+wlsfit = pint.fitter.WLSFitter(toas=toas, model=equatorial_timing_model)
 
-# And freeze them
-equatorial_timing_model.components['AstrometryEquatorial'].RAJ.frozen = True
-equatorial_timing_model.components['AstrometryEquatorial'].DECJ.frozen = True
-equatorial_timing_model.components['AstrometryEquatorial'].PMRA.frozen = True
-equatorial_timing_model.components['AstrometryEquatorial'].PMDEC.frozen = True
-equatorial_timing_model.components['AstrometryEquatorial'].PX.frozen = True
+# A fit is performed by calling fit_toas()
+wlsfit.fit_toas(maxiter=3)
 
-print(equatorial_timing_model.components['AstrometryEquatorial'].PMRA)
-print(equatorial_timing_model.components['AstrometryEquatorial'].PMDEC)
-print(equatorial_timing_model.components['AstrometryEquatorial'].PX)
-sys.exit()
+# Calculate new residuals
+new_residuals = Residuals(toas, equatorial_timing_model).time_resids.to(u.us).value  # Don't forget to use actual timing residuals!
 
-
-
-print(equatorial_timing_model)
-
-
+# Plot the original timing residuals
+plt.figure()
+plt.errorbar(xt, new_residuals, yerr=errors, fmt ='o')
+plt.title(str(timing_model.PSR.value) + " New Timing Residuals | $\sigma_\mathrm{TOA}$ = " + str(round(np.std(new_residuals), 2)))
+plt.xlabel("MJD")
+plt.ylabel("Residual ($\mu s$)")
+plt.grid()
+plt.show()
