@@ -6,7 +6,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+import astropy
 from pint.models import get_model_and_toas
 import pint.toa as toa
 from pint.models import get_model
@@ -15,9 +15,9 @@ import pint.fitter
 import pandas as pd
 
 import sys
-import pint.models as models
+
+import noise_utils
 import astropy.units as u
-from astropy.coordinates import SkyCoord
 
 # Pulsars we are timing
 PSR_name: str = "J1012+5307"
@@ -79,20 +79,36 @@ equatorial_timing_model.setup()
 equatorial_timing_model.validate()
 
 # Fit the other timing parameters using the new astrometric values
-# Let's tell PINT to perform the fit using the Generalized Least Squares (GLS) fitter.
-wlsfit = pint.fitter.WLSFitter(toas=toas, model=equatorial_timing_model)
 
-# A fit is performed by calling fit_toas()
-wlsfit.fit_toas(maxiter=3)
+# Perform initial fit
+f = pint.fitter.DownhillGLSFitter(toas, equatorial_timing_model)
+f.fit_toas(maxiter=5)
 
-# Calculate new residuals
-new_residuals = Residuals(toas, equatorial_timing_model).time_resids.to(u.us).value  # Don't forget to use actual timing residuals!
+# Re-run noise
+noise_utils.model_noise(equatorial_timing_model, toas, vary_red_noise=True, n_iter=int(1e5), using_wideband=False,
+                        resume=True, run_noise_analysis=True, base_op_dir="noisemodel_linear_sd/")
 
-# Plot the original timing residuals
+newmodel = noise_utils.add_noise_to_model(equatorial_timing_model, base_dir="noisemodel_linear_sd/")
+print(newmodel)
+#newmodel.get_params_of_component_type("NoiseComponent")
+
+# Final fit
+new_f = pint.fitter.DownhillGLSFitter(toas, newmodel)
+new_f.fit_toas(maxiter=5)
+
+
+# Let's plot the residuals and compare
 plt.figure()
-plt.errorbar(xt, new_residuals, yerr=errors, fmt ='o')
-plt.title(str(timing_model.PSR.value) + " New Timing Residuals | $\sigma_\mathrm{TOA}$ = " + str(round(np.std(new_residuals), 2)))
+plt.errorbar(
+    xt,
+    new_f.resids.time_resids.to(u.us).value,
+    toas.get_errors().to(u.us).value,
+    fmt='o',
+)
+plt.title("%s Post-Fit Timing Residuals" % equatorial_timing_model.PSR.value)
 plt.xlabel("MJD")
 plt.ylabel("Residual ($\mu s$)")
 plt.grid()
 plt.show()
+
+sys.exit()
