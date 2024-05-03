@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from astropy.coordinates import Angle
-from numpy.linalg import inv
+from numpy.linalg import inv, multi_dot
 
 from astropy.coordinates import SkyCoord  # High-level coordinates
 from astropy.coordinates import ICRS, Galactic, FK4, FK5  # Low-level frames
@@ -40,15 +40,17 @@ def error_propagation(ra, dec, ra_err, dec_err):
 
     return np.array([x_err, y_err, z_err])
 
-
+# Load the data
 data = pd.read_csv("./data/frame_tie.csv", index_col=0)
 PSR_names = ["J0437-4715", "J1713+0747"]
 N_pulsars: int = len(PSR_names)
 
+# Define the matrix
 D_T = np.empty((1, 3 * N_pulsars))
 E_T = np.empty((1, 3 * N_pulsars))
 M_T = np.empty((3, 3 * N_pulsars))
 
+# Iterate over the pulsars
 for i, PSR in enumerate(PSR_names):
     timing_coords = SkyCoord(ra=data.loc[f"{PSR}_timing", "RAJ"], dec=data.loc[f"{PSR}_timing", "DECJ"],
                              frame=FK4, unit=(u.hourangle, u.deg),
@@ -75,6 +77,7 @@ for i, PSR in enumerate(PSR_names):
     x, y, z = VLBI_coords.cartesian.get_xyz()
     M_T[:, 3 * i:3 * (i + 1)] = np.transpose(np.matrix([[0, -z, y], [z, 0, -x], [-y, x, 0]]))
 
+# Do the calculations
 E = np.transpose(E_T)
 D = np.transpose(D_T)
 M = np.transpose(M_T)
@@ -83,7 +86,9 @@ sigma = np.dot(E, E_T)
 sigma = np.diag(np.diag(sigma))  # We have approximated sigma as diagonal
 sigma_inv = np.linalg.inv(sigma)
 
-A = np.dot(np.dot(np.dot(np.linalg.inv(np.dot(np.dot(M_T, sigma_inv), M)), M_T), sigma_inv), D)
+#A = np.dot(np.dot(np.dot(np.linalg.inv(np.dot(np.dot(M_T, sigma_inv), M)), M_T), sigma_inv), D)
+
+A = multi_dot([inv(multi_dot([M_T, sigma_inv, M])), M_T, sigma_inv, D])
 
 Ax, Ay, Az = Angle(A[0, 0], u.radian), Angle(A[1, 0], u.radian), Angle(A[2, 0], u.radian)
 
