@@ -25,7 +25,6 @@ PSR_name: str = "J1012+5307"
 # Load the astrometric parameters
 astrometric_values = pd.read_csv("./data/astrometric_values.csv", index_col=0)
 
-
 # Load data to PINT
 timfile: str = f"./data/NG_15yr_dataset/tim/{PSR_name}_PINT_20220305.nb.tim"
 parfile: str = f"./data/NG_15yr_dataset/par/{PSR_name}_PINT_20220305.nb.par"

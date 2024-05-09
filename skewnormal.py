@@ -2,7 +2,7 @@ import numpy as np
 import scipy
 from matplotlib import pyplot as plt
 import seaborn as sns
-from scipy.stats import skewnorm
+from scipy.stats import norm, skewnorm
 
 def parSkewNormal(x, uL, uR, pX=0.5, pL=0.025, pR=0.975, wX=1, wL=1, wR=1):
 
@@ -42,19 +42,37 @@ def parSkewNormal(x, uL, uR, pX=0.5, pL=0.025, pR=0.975, wX=1, wL=1, wR=1):
     except:
         raise ValueError("Optimization failed")
 
-x: float = 1.17
-uL: float = 0.05
-uR: float = 0.04
+def plot_pdf(x0, uL, uR, num: int = 1000):
 
-res = parSkewNormal(x=x, uL=uL, uR=uR)
+    # If the error bars are equal, we have a normal distribution
+    if uL == uR:
+        x = np.linspace(x0 - 3.5 * uL, x0 + 3.5 * uR, num)
+        y = norm.pdf(x, loc=x0, scale=uL)
 
-x = np.linspace(1.0, 1.5, 1000)
-y = skewnorm.pdf(x, a=res['a'], loc=res['loc'], scale=res['scale'])
+    # If the error bars are not equal, we have a skew-normal distribution
+    if uL != uR:
+        res = parSkewNormal(x=x0, uL=uL, uR=uR)
+        x = np.linspace(res['loc'] - 4 * res['scale'], res['loc'] + 4 * res['scale'], num)
+        y = skewnorm.pdf(x, a=res['a'], loc=res['loc'], scale=res['scale'])
 
-sns.set_style("darkgrid")
+    return x, y
 
-plt.plot(x, y)
-plt.title("SkewNormal PDF for $\Pi=1.17^{+0.04}_{-0.05}$")
-plt.xlabel('$\Pi$')
-plt.ylabel('Probability (unnormalized)')
-plt.show()
+#    return [1,2,3], [1,2,3]
+
+
+#x: float = 1.17
+#uL: float = 0.05
+#uR: float = 0.04
+
+#res = parSkewNormal(x=x, uL=uL, uR=uR)
+
+#x = np.linspace(1.0, 1.5, 1000)
+#y = skewnorm.pdf(x, a=res['a'], loc=res['loc'], scale=res['scale'])
+
+#sns.set_style("darkgrid")
+
+#plt.plot(x, y)
+#plt.title("SkewNormal PDF for $\Pi=1.17^{+0.04}_{-0.05}$")
+#plt.xlabel('$\Pi$')
+#plt.ylabel('Probability (unnormalized)')
+#plt.show()

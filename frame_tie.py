@@ -10,7 +10,6 @@ import astropy.units as u
 
 import sys
 
-
 def eq_to_cartesian(ra, dec):
     # Add units
     ra = Angle(ra).radian
@@ -39,6 +38,7 @@ def error_propagation(ra, dec, ra_err, dec_err):
     z_err = np.cos(dec) * dec_err
 
     return np.array([x_err, y_err, z_err])
+
 
 # Load the data
 data = pd.read_csv("./data/frame_tie.csv", index_col=0)
