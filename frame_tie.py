@@ -40,7 +40,7 @@ def error_propagation(ra, dec, ra_err, dec_err):
     return np.array([x_err, y_err, z_err])
 
 
-# Load the data
+# Load the VLBI_data
 data = pd.read_csv("./data/frame_tie.csv", index_col=0)
 PSR_names = ["J0437-4715", "J1713+0747"]
 N_pulsars: int = len(PSR_names)

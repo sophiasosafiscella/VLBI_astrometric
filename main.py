@@ -25,9 +25,9 @@ PSR_name: str = "J1012+5307"
 # Load the astrometric parameters
 astrometric_values = pd.read_csv("./data/astrometric_values.csv", index_col=0)
 
-# Load data to PINT
-timfile: str = f"./data/NG_15yr_dataset/tim/{PSR_name}_PINT_20220305.nb.tim"
-parfile: str = f"./data/NG_15yr_dataset/par/{PSR_name}_PINT_20220305.nb.par"
+# Load VLBI_data to PINT
+timfile: str = f"./VLBI_data/NG_15yr_dataset/tim/{PSR_name}_PINT_20220305.nb.tim"
+parfile: str = f"./VLBI_data/NG_15yr_dataset/par/{PSR_name}_PINT_20220305.nb.par"
 timing_model, toas = get_model_and_toas(parfile, timfile)
 
 #toas = toa.get_TOAs(f"./NG_15yr_dataset/tim/{PSR_name}_PINT_20220305.nb.tim")
@@ -41,7 +41,7 @@ errors = toas.get_errors().to(u.us).value
 # Plot the original timing residuals
 plt.figure()
 plt.errorbar(xt, residuals, yerr=errors, fmt ='o')
-plt.title(str(timing_model.PSR.value) + " Original Timing Residuals | $\sigma_\mathrm{TOA}$ = " + str(round(np.std(residuals), 2)))
+plt.title(str(timing_model.PSR_name.value) + " Original Timing Residuals | $\sigma_\mathrm{TOA}$ = " + str(round(np.std(residuals), 2)))
 plt.xlabel("MJD")
 plt.ylabel("Residual ($\mu s$)")
 plt.grid()
@@ -78,7 +78,6 @@ equatorial_timing_model.setup()
 equatorial_timing_model.validate()
 
 # Fit the other timing parameters using the new astrometric values
-
 # Perform initial fit
 f = pint.fitter.DownhillGLSFitter(toas, equatorial_timing_model)
 f.fit_toas(maxiter=5)
@@ -104,7 +103,7 @@ plt.errorbar(
     toas.get_errors().to(u.us).value,
     fmt='o',
 )
-plt.title("%s Post-Fit Timing Residuals" % equatorial_timing_model.PSR.value)
+plt.title("%s Post-Fit Timing Residuals" % equatorial_timing_model.PSR_name.value)
 plt.xlabel("MJD")
 plt.ylabel("Residual ($\mu s$)")
 plt.grid()
