@@ -11,7 +11,7 @@ from astropy.coordinates import Angle, Longitude, Latitude, SkyCoord, FK5, ICRS,
     BarycentricTrueEcliptic, Galactic, BaseEclipticFrame
 from astropy.time import Time
 import astropy.units as u
-from skewnormal import pdf_value, plot_pdf
+from VLBI_utils import pdf_value, plot_pdf
 
 from shapely import Point, buffer, prepare, contains_properly
 from shapely.geometry import Polygon
@@ -37,6 +37,7 @@ PSR_list = data.index
 VLBI_color = "rgba(0, 204, 150, 0.5)"  # px.colors.qualitative.Pastel1[2]
 timing_color = "rgba(99, 110, 250, 0.5)"  # px.colors.qualitative.Pastel1[1]
 grid_num: int = 10
+factor: int = 3
 
 for i, PSR in enumerate(PSR_list[0:1]):
 
@@ -113,10 +114,10 @@ for i, PSR in enumerate(PSR_list[0:1]):
     other.set_yticks([])
 
     # Create a circle containing the +/- values
-    circle_timing_out = plt.Circle((0, 0), radius=timing_PM.nominal_value + 2 * timing_PM.std_dev, color='r', lw=3, ls=":",
+    circle_timing_out = plt.Circle((0, 0), radius=timing_PM.nominal_value + factor * timing_PM.std_dev, color='r', lw=3, ls=":",
                                fill=False,
-                               label="$\mu_{\mathrm{timing}} \pm 2\sigma_{\mu}$")
-    circle_timing_in = plt.Circle((0, 0), radius=timing_PM.nominal_value - 2 * timing_PM.std_dev, color='r', lw=3, ls=":",
+                               label="$\mu_{\mathrm{timing}} \pm$" + str(factor) + "$\sigma_{\mu}$")
+    circle_timing_in = plt.Circle((0, 0), radius=timing_PM.nominal_value - factor * timing_PM.std_dev, color='r', lw=3, ls=":",
                                 fill=False)
     ax_main.add_patch(circle_timing_out)
     ax_main.add_patch(circle_timing_in)
@@ -136,10 +137,10 @@ for i, PSR in enumerate(PSR_list[0:1]):
             VLBI_PM_uR = VLBI_PM.std_dev
 
     # Make circles representing the PM +/- 2sigma region for VLBI
-    circle_uL = plt.Circle((0, 0), VLBI_PM.nominal_value - 2 * VLBI_PM.std_dev, color='g', lw=3, ls="--", fill=False,
-                           label="$\mu_{\mathrm{VLBI}} \pm 2\sigma_{\mu}$")
+    circle_uL = plt.Circle((0, 0), VLBI_PM.nominal_value - factor * VLBI_PM.std_dev, color='g', lw=3, ls="--", fill=False,
+                           label="$\mu_{\mathrm{VLBI}} \pm$" + str(factor) + "$\sigma_{\mu}$")
     circle_ML = plt.Circle((0, 0), VLBI_PM.nominal_value, color='b', lw=4, fill=False, label="$\mu_{\mathrm{VLBI}}$")
-    circle_uR = plt.Circle((0, 0), VLBI_PM.nominal_value + 2 * VLBI_PM.std_dev, color='g', lw=3, ls="--", fill=False)
+    circle_uR = plt.Circle((0, 0), VLBI_PM.nominal_value + factor * VLBI_PM.std_dev, color='g', lw=3, ls="--", fill=False)
     ax_main.add_patch(circle_uL)
     ax_main.add_patch(circle_ML)
     ax_main.add_patch(circle_uR)
@@ -163,8 +164,8 @@ for i, PSR in enumerate(PSR_list[0:1]):
     x, y = plot_pdf(x0=VLBI_x0, uL=VLBI_uL, uR=VLBI_uR, num=grid_num)
     px_values = x
     fig.add_trace(go.Scatter(x=x, y=y, name="VLBI", fill='tozeroy', fillcolor=VLBI_color, mode='none'))
-    fig.add_vline(x=VLBI_x0 - 2 * VLBI_uL, line_width=3, line_dash="dash", line_color="green")
-    fig.add_vline(x=VLBI_x0 + 2 * VLBI_uR, line_width=3, line_dash="dash", line_color="green")
+    fig.add_vline(x=VLBI_x0 - factor * VLBI_uL, line_width=3, line_dash="dash", line_color="green")
+    fig.add_vline(x=VLBI_x0 + factor * VLBI_uR, line_width=3, line_dash="dash", line_color="green")
 
     # Timing
     timing_PX = eq_timing_model.PX.value
@@ -187,15 +188,16 @@ for i, PSR in enumerate(PSR_list[0:1]):
     results[:, :] = np.nan
 
     # Iterate over all points
+
     for i, (mu_alpha_star, mu_delta, px) in enumerate(product(x_values, y_values, px_values)):
 
-        if VLBI_PM.nominal_value - 2 * VLBI_PM.std_dev < math.sqrt(mu_alpha_star**2 + mu_delta**2) < VLBI_PM.nominal_value + 2 * VLBI_PM.std_dev:
+        if VLBI_PM.nominal_value - factor * VLBI_PM.std_dev < math.sqrt(mu_alpha_star**2 + mu_delta**2) < VLBI_PM.nominal_value + factor * VLBI_PM.std_dev:
 
-            if contains_properly(timing_polygon, Point(mu_alpha_star, mu_delta)):
+#            if contains_properly(timing_polygon, Point(mu_alpha_star, mu_delta)):
 
-                if np.max([timing_PX-2*timing_PX_err, VLBI_x0 - 2 * VLBI_uL]) < px < np.min([timing_PX+2*timing_PX_err, VLBI_x0 + 2 * VLBI_uR]):
+             if np.max([timing_PX - factor * timing_PX_err, VLBI_x0 - factor * VLBI_uL]) < px < np.min([timing_PX + factor * timing_PX_err, VLBI_x0 + factor * VLBI_uR]):
 
-                    results[i, :] = [mu_alpha_star / math.cos(timing_DECJ.nominal_value), mu_delta, px]
+                 results[i, :] = [mu_alpha_star / math.cos(timing_DECJ.nominal_value), mu_delta, px]
 
     pd.DataFrame(data=results, columns=["PMRA", "PMDEC", "PX"]).dropna(how="any", ignore_index=True).to_pickle(f"./results/{PSR}_overlap.pkl")
 
